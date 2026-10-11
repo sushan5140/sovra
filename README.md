@@ -1,53 +1,75 @@
 # sovra.
 
-**Question the prediction.**
+**Question the prediction. Then question the intervention.**
 
-Sovra is an open research project investigating **how reliably computational methods rank protein–ligand binding candidates**, and whether simple checks can identify misleading confidence before candidates are prioritized for experimental study.
+Sovra is an early-stage, open computational research project studying **failure modes in protein–ligand structure prediction**. We want to understand not only *when* a prediction is unreliable, but whether an appropriate next action can improve experimentally referenced pose recovery **at a controlled computational cost**.
 
-> **Status:** research design / baseline planning — no benchmark results or validated drug discoveries claimed.
+> **Research status:** hypothesis and experimental-design stage. **No model, benchmark result, demonstrated improvement, or drug discovery is claimed.**
 
-## The research question
+## The problem
 
-Can a transparent reliability layer detect unstable or misleading molecular ranking results **better than simple baselines**, without merely discarding all hard cases?
+A predicted protein–ligand complex may look plausible yet be wrong. Different cases can involve different issues: inadequate pose exploration, incorrect selection among sampled poses, wrong protein conformational states, or chemically invalid geometry. Additional random sampling or rescoring is not guaranteed to fix every failure.
 
-The first study is not a drug-discovery claim. It is a *falsifiable evaluation* of computational predictions.
+**Our question:** Can evidence available *before* seeing the experimental answer help determine which action to take next—and when to stop?
 
-## Planned first experiment
+## Working hypothesis: failure-conditioned adaptive inference (FCI)
 
-1. Select a legitimately redistributable benchmark with measured binding labels, assay metadata and train/test grouping information.
-2. Reproduce a documented baseline and establish a fixed data split before tuning.
-3. Evaluate molecular rankings with appropriate metrics (e.g., Spearman rank correlation and enrichment metrics where applicable).
-4. Quantify prediction instability under documented, scientifically defensible perturbations and alternative model assumptions.
-5. Evaluate whether a reliability/abstention rule improves *selective* performance at specified coverage levels against score-only and random-abstention baselines.
-6. Repeat with scaffold-level and, where metadata allow, protein-family or temporal holdouts to test generalization.
-7. Publish configs, seeds, provenance, failure cases and negative findings.
+We are **investigating**, not asserting, whether three components improve accuracy–compute trade-offs on genuinely held-out protein families:
 
-**Important:** docking scores and predicted poses are not experimental evidence of efficacy, toxicity, safety, or clinical suitability. Predicted protein structures are not guaranteed to be valid docking targets. Any compound-specific conclusion requires appropriate experimental validation.
+1. **Failure signals:** assess observable pose diversity, geometry, representation consistency and other diagnostic features without access to the reference answer at test time.
+2. **Intervention policy:** choose between additional sampling, reranking, refinement, alternative-state exploration, or abstention within a specified compute budget.
+3. **Outcome memory:** learn from interventions and outcomes on *training-only* cases to inform decisions on unseen cases.
 
-## Success and failure criteria
+This is a candidate research architecture, **not a novelty claim**. Before implementation we will audit existing adaptive inference, perturbation methods and physics-based refinement literature.
 
-A meaningful result must outperform preregistered simple baselines on **held-out data** with uncertainty intervals and disclose coverage–performance tradeoffs. If the reliability layer fails, that negative result is still a valid outcome. Selective performance alone is not enough if coverage collapses.
+### Competing hypotheses
 
-## Repository roadmap
+We are also evaluating:
 
-- [ ] Data provenance, licensing and leakage audit
-- [ ] Data schema + fixed split manifest
-- [ ] Reproducible baseline scorer
-- [ ] Reliability indicators with ablation study
-- [ ] Calibration and selective-risk evaluation
-- [ ] External holdout or distribution-shift audit
-- [ ] Research visualization (only after metrics are real)
+- **Relational learning:** can differences across related molecular cases be modeled more accurately than independent predictions?
+- **Conformational diversity:** can explicit protein-state exploration recover states missed by ordinary inference?
+- **Evidence-limited inference:** can a model identify when the available evidence cannot distinguish competing hypotheses and abstain appropriately?
 
-## Ethics and limitations
+The final research direction remains open until the baseline and prior-art gates are passed.
 
-- Computational, non-clinical research only.
-- No claim of discovering, validating, or recommending a medicine.
-- No wet-lab or synthesis instructions.
-- Respect benchmark licenses, assay provenance, and any chemical-use restrictions.
-- Track model versions, code versions, parameter choices, and reproducibility limits.
+## Experimental principles
 
-## Why the name?
+- **Reproduce before proposing improvement.** Compare against relevant established methods, fixed-budget sampling, simple uncertainty rules and random routing.
+- **No hidden reference access.** Experimental structures can produce training labels and held-out evaluation metrics, but cannot inform test-time decisions.
+- **Fair comparison.** Match computational budgets and report hardware, runtime, versions, seeds and settings.
+- **Check generalization.** Use data provenance audits, similarity-aware splits and untouched out-of-group evaluations.
+- **Ablate everything.** If a simpler system matches the hybrid, prefer the simpler system.
+- **Publish failures.** Negative results, chemically invalid structures, uncertainty and limitations belong in the report.
 
-**sovra.** is the project name; the science lives in the methods, not the branding.
+Cached predictions may support an **offline policy simulation**, which is not evidence of real-time compute savings.
 
-Maintained by [sushan5140](https://github.com/sushan5140).
+## Roadmap
+
+| Stage | Phases | Goal | Status |
+| --- | --- | --- | --- |
+| Scientific foundation | 01–03 | Literature audit, hypothesis selection, benchmark and leakage plan | Planning |
+| Reproducible evidence | 04–05 | Reproduce baseline and build a labeled failure atlas | Not started |
+| Competing experiments | 06–08 | Test relational, state-diversity and evidence-limited alternatives | Not started |
+| Adaptive research engine | 09–11 | Diagnosis, intervention policy, outcome memory | Not started |
+| Scientific validation | 12–13 | Ablations, out-of-group generalization and falsification | Not started |
+| Research experience & release | 14–15 | Traceable experiment viewer, documentation and results | Not started |
+
+**Detailed research decisions:** [Research Decision Record 001](research/DECISION_RECORD_001.md).
+
+## References for the starting investigation
+
+- [PoseBusters](https://doi.org/10.1039/D3SC04185A) — physical and chemical plausibility checks for predicted binding poses.
+- [PLINDER](https://github.com/plinder-org/plinder) — protein–ligand structural evaluation resource.
+- [GPCR co-folding generalization study (2026)](https://www.nature.com/articles/s44386-026-00066-1) — unfamiliar-target pose errors and refinement.
+- [Ion-channel co-folding benchmark (2026)](https://www.frontiersin.org/journals/biophysics/articles/10.3389/frbis.2026.1937302/full) — pose sampling, ranking and input-representation limitations.
+
+References motivate questions; they do **not** establish that Sovra's proposed combination is original or effective.
+
+## Scope and integrity
+
+Sovra is computational research, **not** a clinical tool. Docking scores, predicted structures and computational rankings do not establish binding, drug efficacy, toxicity or medical safety. No invented benchmark statistics or simulated experimental outcomes will be presented as measured findings.
+
+---
+
+Maintained by [sushan5140](https://github.com/sushan5140).  
+**sovra.** — research first, evidence always.
