@@ -1,69 +1,93 @@
-"""Sovra Phase 03: read-only schema & split audit. Stdlib only, no downloads."""
-import argparse, csv, json, sys
-from collections import Counter, defaultdict
+"""Read-only Runs N' Poses dataset audit; validates real model CSV and TAR schemas."""
+import argparse,csv,io,json,tarfile
+from collections import Counter,defaultdict
+from pathlib import Path
 
-REQUIRED_ANNOTATIONS = {'system_id','ligand_instance_chain','group_key','cluster'}
-REQUIRED_PREDICTIONS = {'system_id','ligand_instance_chain','seed','sample','ranking_score','rmsd'}
-# Any reference-derived metric or post-hoc closest-training label is prohibited as a decision feature.
-FORBIDDEN = {'rmsd','lddt_pli','lddt_lp','bb_rmsd','pred_pocket_f1','target_system','target_release_date','num_training_systems_with_similar_ccds'}
+ANN_REQ={'system_id','ligand_instance_chain','group_key','cluster'}
+PRED_REQ={'target','ligand_instance_chain','method'}
+SAFE_FEATURES={'ranking_score'}
 
-def read(path):
-    with open(path, newline='', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f)
-        return set(reader.fieldnames or []), list(reader)
-
-def audit(annotations, predictions, manifest=None, features=None):
-    errors, warnings = [], []
-    a_cols, ann = read(annotations)
-    p_cols, pred = read(predictions)
-    for label, cols, required in [('annotations',a_cols,REQUIRED_ANNOTATIONS),
-                                  ('predictions',p_cols,REQUIRED_PREDICTIONS)]:
-        if required - cols: errors.append(f"{label} missing: {sorted(required-cols)}")
-    selected = set(features if features is not None else ['ranking_score'])
-    if selected & FORBIDDEN: errors.append(f"Ground-truth leakage features: {sorted(selected & FORBIDDEN)}")
-    if selected - p_cols: errors.append(f"Features absent from predictions: {sorted(selected-p_cols)}")
-    if not ann or not pred: errors.append('Empty CSV')
-    by_key = defaultdict(set)
-    for r in ann:
-        by_key[(r.get('system_id'),r.get('ligand_instance_chain'))].add(r.get('group_key'))
-    if any(len(groups)>1 for groups in by_key.values()): errors.append('Conflicting group_key mapping')
-    if any((r.get('system_id'),r.get('ligand_instance_chain')) not in by_key for r in pred):
-        errors.append('Predictions without annotation mapping')
-    pred_ids = [(r.get('system_id'),r.get('ligand_instance_chain'),r.get('seed'),r.get('sample')) for r in pred]
-    if len(set(pred_ids)) != len(pred_ids):
-        errors.append('Duplicate prediction identity; handle separate methods independently')
-    counts = {}
-    if manifest:
-        with open(manifest, encoding='utf-8') as f: splits = json.load(f)
-        if not isinstance(splits, dict): errors.append('Split manifest must be group_key -> train/val/test')
+def audit(annotations_path,predictions_path,split_manifest=None,features=None):
+    errors=[];warnings=[];features=list(features) if features is not None else ['ranking_score']
+    unapproved=set(features)-SAFE_FEATURES
+    if unapproved:errors.append(f'Unapproved/reference-derived features: {sorted(unapproved)}')
+    annotated=defaultdict(set);group_clusters=defaultdict(set);ann_rows=0
+    with open(annotations_path,newline='',encoding='utf-8-sig') as f:
+        reader=csv.DictReader(f);missing=ANN_REQ-set(reader.fieldnames or ())
+        if missing:errors.append(f'Annotations missing columns: {sorted(missing)}')
         else:
-            clusters = defaultdict(set)
-            for r in ann:
-                group, cluster = r.get('group_key'),r.get('cluster')
-                split = splits.get(group)
-                if not cluster: errors.append(f'Missing cluster for {group}')
-                if split not in ('train','val','test'): errors.append(f'Missing/invalid split for {group}')
-                if cluster and split: clusters[cluster].add(split)
-            if any(len(v)>1 for v in clusters.values()): errors.append('Cluster leakage across splits')
-            counts = dict(Counter(splits.get(r.get('group_key'),'missing') for r in ann))
-    else: warnings.append('No split manifest supplied; holdout is NOT verified')
-    if 'rmsd' in p_cols: warnings.append('RMSD present as label only; never use for inference')
-    return dict(status='PASS' if not errors else 'FAIL', annotation_rows=len(ann),
-                prediction_rows=len(pred), unique_system_ligands=len(by_key),
-                selected_features=sorted(selected), split_counts=counts,
-                errors=errors,warnings=warnings)
+            for row in reader:
+                ann_rows+=1
+                annotated[(row['system_id'],row['ligand_instance_chain'])].add(row['group_key'])
+                group_clusters[row['group_key']].add(row['cluster'])
+    conflicts=sum(len(v)>1 for v in annotated.values())
+    if conflicts:errors.append(f'{conflicts} annotations map an identity to multiple groups')
+    split_counts={}
+    if split_manifest:
+        with open(split_manifest,encoding='utf-8') as f:splits=json.load(f)
+        if not isinstance(splits,dict):errors.append('Split manifest must map group_key to train/val/test')
+        else:
+            cluster_splits=defaultdict(set)
+            for group,clusters in group_clusters.items():
+                split=splits.get(group)
+                if split not in {'train','val','test'}:errors.append(f'Missing/invalid split for {group}')
+                for c in clusters:
+                    if not c:errors.append(f'Empty cluster in group {group}')
+                    elif split in {'train','val','test'}:cluster_splits[c].add(split)
+            if any(len(v)>1 for v in cluster_splits.values()):errors.append('Cluster leakage across splits')
+            split_counts=dict(Counter(splits.get(g,'missing') for g in group_clusters))
+    else:warnings.append('No split manifest supplied; split leakage safety NOT established')
+    summaries=[]
+    path=Path(predictions_path)
+    def sources():
+        if tarfile.is_tarfile(path):
+            with tarfile.open(path,'r:*') as t:
+                for m in t:
+                    if m.isfile() and m.name.lower().endswith('.csv'):
+                        stream=t.extractfile(m)
+                        if stream:
+                            with io.TextIOWrapper(stream,encoding='utf-8-sig',newline='') as f:
+                                yield m.name,f
+        else:
+            with open(path,encoding='utf-8-sig',newline='') as f:yield path.name,f
+    for name,f in sources():
+        reader=csv.DictReader(f);cols=set(reader.fieldnames or ())
+        missing=PRED_REQ-cols
+        if missing:
+            errors.append(f'{name}: missing {sorted(missing)}');continue
+        for feature in features:
+            if feature not in cols:warnings.append(f'{name}: selected feature {feature} missing')
+        seen=set();unmatched=set();unmatched_rows=0;matched=0;duplicate=0;rows=0;samplekeys=Counter()
+        for r in reader:
+            rows+=1
+            key=(r.get('target',''),r.get('ligand_instance_chain',''))
+            if key in annotated:matched+=1
+            else:unmatched_rows+=1;unmatched.add(key)
+            ident=(r.get('method',''),*key,r.get('seed',''),r.get('sample',''),r.get('model_ligand_ccd_code',''),r.get('model_ligand_chain_rmsd',''))
+            if ident in seen:duplicate+=1
+            else:seen.add(ident)
+            samplekeys[(r.get('method',''),r.get('target',''),r.get('seed',''),r.get('sample',''))]+=1
+        if not rows:errors.append(f'{name}: empty prediction file')
+        summaries.append(dict(file=name,rows=rows,matched_rows=matched,unmatched_rows=unmatched_rows,
+            unmatched_unique_keys=len(unmatched),repeated_extended_identifiers=duplicate,
+            multi_ligand_or_repeated_sample_keys=sum(n>1 for n in samplekeys.values()),
+            has_seed='seed' in cols,has_sample='sample' in cols,
+            has_ranking_score='ranking_score' in cols,has_rmsd='rmsd' in cols))
+        if unmatched_rows:warnings.append(f'{name}: {unmatched_rows} unmatched annotation rows')
+        if duplicate:warnings.append(f'{name}: {duplicate} repeated extended identifiers; no automatic deduplication')
+    if not summaries:errors.append('No prediction CSVs found')
+    return dict(status='FAIL' if errors else 'PASS_WITH_WARNINGS' if warnings else 'PASS',
+        annotation_rows=ann_rows,annotation_unique_ligands=len(annotated),prediction_files=summaries,
+        split_group_counts=split_counts,selected_features=features,errors=errors,warnings=warnings)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--annotations',required=True);p.add_argument('--predictions',required=True)
-    p.add_argument('--split-manifest');p.add_argument('--feature',action='append')
-    p.add_argument('--out')
+    p.add_argument('--split-manifest');p.add_argument('--feature',action='append');p.add_argument('--out')
     a=p.parse_args()
-    try: report=audit(a.annotations,a.predictions,a.split_manifest,a.feature)
-    except (OSError,ValueError,csv.Error) as err: report={'status':'FAIL','errors':[str(err)]}
-    result=json.dumps(report,indent=2);print(result)
-    if a.out:
-        with open(a.out,'w',encoding='utf-8') as f:f.write(result+'\n')
-    return 0 if report['status']=='PASS' else 1
-
-if __name__=='__main__':sys.exit(main())
+    try:result=audit(a.annotations,a.predictions,a.split_manifest,a.feature)
+    except (OSError,ValueError,csv.Error,tarfile.TarError) as e:result={'status':'FAIL','errors':[str(e)]}
+    output=json.dumps(result,indent=2);print(output)
+    if a.out:Path(a.out).write_text(output+'\n',encoding='utf-8')
+    return int(result['status']=='FAIL')
+if __name__=='__main__':raise SystemExit(main())
