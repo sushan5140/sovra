@@ -51,9 +51,9 @@ class Phase03FSplitsTests(unittest.TestCase):
             self.assertEqual(splits["g0"], splits["g1"])
             self.assertEqual(splits["g3"], splits["g4"])
             self.assertEqual(report["counter"]["rows_scanned"], 4)
-            self.assertEqual(report["candidate_summary"]["protein_or_pocket_80"]["components"], 3)
-            self.assertEqual(report["candidate_summary"]["protein_or_coverage_adjusted_pocket_80"]["components"], 4)
-            self.assertEqual(report["candidate_summary"]["protein_or_pocket_70"]["components"], 2)
+            self.assertEqual(report["candidate_summary"]["protein_or_pocket_80"]["components"], 4)
+            self.assertEqual(report["candidate_summary"]["protein_or_coverage_adjusted_pocket_80"]["components"], 5)
+            self.assertEqual(report["candidate_summary"]["protein_or_pocket_70"]["components"], 3)
             self.assertEqual(manifest.read_text(), self._run_again(ann, parquet, root))
 
     def _run_again(self, ann, parquet, root):
