@@ -1,0 +1,22 @@
+# Third-party datasets and model output archives: keep local
+*.tar.gz
+*.parquet
+annotations.csv
+predictions.csv
+posebusters_results.csv
+data/raw/
+data/cache/
+data/downloads/
+*.sdf
+*.pdb
+*.cif
+*.mol2
+
+# Generated machine-local reports (commit only reviewed, sanitized summaries)
+audit_report.json
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
