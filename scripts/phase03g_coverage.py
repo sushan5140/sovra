@@ -87,7 +87,20 @@ def audit(annotations, predictions, manifest):
                 missing = PREDICTION_FIELDS - fields
                 if missing:
                     raise ValueError(member.name + " missing columns " + str(sorted(missing)))
-                counts = Counter()
+                counts = Counter({
+                    "rows_total": 0,
+                    "matched_rows": 0,
+                    "unmatched_target": 0,
+                    "unmatched_missing_ligand_chain": 0,
+                    "unmatched_chain": 0,
+                    "matched_improper_ligand_rows": 0,
+                    "proper_matched_rows": 0,
+                    "proper_rows_with_finite_score": 0,
+                    "proper_rows_without_finite_score": 0,
+                    "proper_rows_with_finite_reference_metric": 0,
+                    "proper_rows_without_finite_reference_metric": 0,
+                    "proper_rows_with_score_and_reference": 0,
+                })
                 splits_all = Counter()
                 split_eligible = Counter()
                 observed_methods = set()
