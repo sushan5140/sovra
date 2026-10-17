@@ -1,7 +1,7 @@
 # Phase 03F — Similarity-aware split feasibility: measured results
 
 Date: 2026-10-17 UTC
-Status: **REAL-DATA REBUILD SUCCESSFUL; INDEPENDENT CROSS-SPLIT VERIFICATION PENDING; NOT SCIENTIFICALLY FROZEN**.
+Status: **REAL-DATA REBUILD AND INDEPENDENT OBSERVED-LINK VERIFICATION PASSED; SPLIT STILL PROVISIONAL (NOT SCIENTIFICALLY FROZEN).**
 
 ## Reproducibility
 Initial real-data workflow run: https://github.com/sushan5140/sovra/actions/runs/38997811499
@@ -45,3 +45,24 @@ An independent re-read of the source using `scripts/audit_parquet_similarity.py`
 Then verify method-specific coverage, appropriate ligand eligibility, observed-pair coverage and model-output usage rights before freezing a Phase 04 evaluation protocol.
 
 **No pose-recovery accuracy, trained policy, or Sovra improvement has been measured yet.**
+
+## Independent post-rebuild verification — VERIFIED
+Second GitHub Actions run: https://github.com/sushan5140/sovra/actions/runs/38998012747
+Run completed successfully. Both Zenodo MD5s matched and **14/14 synthetic tests passed**.
+
+The independent `scripts/audit_parquet_similarity.py` rescanned **3,862,734 similarity rows** using the regenerated candidate manifest (protein OR unadjusted pocket identity ≥80).
+
+| Observed post-rebuild directed links | Count |
+|---|---:|
+| All cross-partition links regardless of identity score | **4,580** |
+| protein_fident_weighted_sum ≥80 | **0** |
+| pocket_fident ≥80 | **0** |
+| pocket_fident_qcov ≥80 | **0** |
+| pocket_qcov ≥80 | **544** |
+| sucos_shape_pocket_qcov ≥80 | **0** |
+
+The 544 high pocket-coverage links are **not** high pocket-identity links. They show the split does not eliminate every type of similarity or coverage relationship. Counts are overlapping and should not be summed.
+
+**Verified narrow claim:** Under the archive's **observed directed edges**, there are zero cross-split ≥80 weighted protein-identity or unadjusted pocket-identity links; this follows the predeclared graph policy and was checked by an independent audit script. This does **not** prove absence of unobserved similar pairs, model-training contamination, or truly independent protein-family distributions.
+
+**Remaining freeze gates:** method-specific eligible sample counts, nonproper ligand treatment, licensing review, and an explicit accepted study estimand. No pose-performance numbers may be reported from this audit.
