@@ -1,0 +1,59 @@
+name: Phase 03E similarity audit
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/phase03e-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install audit dependency
+        run: python -m pip install pyarrow==21.0.0
+      - name: Download pinned Zenodo v4 data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sovra-data
+          for name in annotations.csv all_similarity_scores.parquet; do
+            curl --fail --location --silent --show-error --retry 3 --retry-delay 5               "https://zenodo.org/records/16754298/files/$name?download=1"               --output "/tmp/sovra-data/$name"
+          done
+          printf '793c711638ba20ae40518ed0e36b0a56  /tmp/sovra-data/annotations.csv\n' | md5sum -c -
+          printf 'eeac5530410568f91ff3a4cdd5756e56  /tmp/sovra-data/all_similarity_scores.parquet\n' | md5sum -c -
+      - name: Verify source and generate provisional manifest
+        run: |
+          python scripts/make_candidate_splits.py             --annotations /tmp/sovra-data/annotations.csv             --output /tmp/sovra-data/provisional_splits.json             --seed sovra-v1
+          sha256sum /tmp/sovra-data/provisional_splits.json
+      - name: Run synthetic tests
+        run: python -m unittest discover -s tests -v
+      - name: Compute cross-partition similarity audit
+        run: |
+          python scripts/audit_parquet_similarity.py             --annotations /tmp/sovra-data/annotations.csv             --manifest /tmp/sovra-data/provisional_splits.json             --similarity /tmp/sovra-data/all_similarity_scores.parquet             --threshold 80             --out /tmp/sovra-data/phase03e_similarity_report.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/sovra-data/phase03e_similarity_report.json'))
+          print(json.dumps({
+            'status':d['status'],
+            'parquet_md5_matches':d['zenodo_md5_matches'],
+            'manifest_sha256':d['manifest_sha256'],
+            'unique_cross_partition_links':d['unique_cross_partition_links'],
+            'threshold_links_by_metric':d['threshold_links_by_metric'],
+            'row_counters':d['row_counters'],
+          },indent=2))
+          PY
+      - name: Upload aggregate report (no raw dataset)
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase03e-similarity-report
+          path: /tmp/sovra-data/phase03e_similarity_report.json
+          retention-days: 14
