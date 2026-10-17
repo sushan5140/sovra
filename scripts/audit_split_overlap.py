@@ -10,7 +10,7 @@ def audit(annotations,manifest):
     group_clusters=defaultdict(set);rows=0;parts=Counter();ident_rows={k:defaultdict(int) for k in by_identity}
     with open(annotations,newline='',encoding='utf-8-sig') as f:
         reader=csv.DictReader(f)
-        missing=set(by_identity)|{'group_key'}-set(reader.fieldnames or [])
+        missing=(set(by_identity)|{'group_key'})-set(reader.fieldnames or [])
         if missing:raise ValueError('Missing annotation columns: '+str(sorted(missing)))
         for row in reader:
             rows+=1;g=row['group_key'];sp=splits.get(g)
