@@ -32,3 +32,13 @@ The provided AlphaFold 3 terms can be checked against https://github.com/google-
 5. No model improvement claim without reproducible baselines and held-out evidence.
 
 **No clinical, affinity, or drug efficacy conclusion is authorized by this dataset.**
+
+
+## Follow-up source audit — named upstream licenses (not archive-output clearance)
+- [Boltz official repository](https://github.com/jwohlwend/boltz) states its code and weights are MIT, including Boltz-1 and Boltz-2. This is a **more promising permissive baseline candidate** than AlphaFold 3, subject to confirming exactly which archived outputs are covered.
+- [Chai-1 official release](https://github.com/chaidiscovery/chai-lab) states code and weights are Apache-2.0. It is another candidate for a legally simpler baseline, subject to archive provenance.
+- [RoseTTAFold All-Atom LICENSE](https://github.com/baker-laboratory/RoseTTAFold-All-Atom/blob/main/LICENSE) identifies a BSD license for the code and linked official weights; some complete pipelines may depend on separately licensed third-party components.
+- [Protenix project](https://github.com/bytedance/Protenix) has model/version-specific terms: notably, Protenix-v2 weights are described as proprietary (2026). **Do not assume any newer Protenix rights apply to archived v1 outputs or vice versa.**
+- **No license statement above transfers copyright or unrestricted redistribution rights to separately published Runs N' Poses output tables.** Maintain model source identity and publication notices.
+
+As a practical research choice, prioritize verifying Boltz or Chai output permissibility for the *first* selection baseline. Keep restricted/ambiguous method outputs quarantined from trained downstream policies until independently cleared.
