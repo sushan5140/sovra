@@ -1,7 +1,7 @@
 # Phase 03E — Pairwise similarity audit execution
 
 Date: 2026-10-17
-Status: **AUTOMATED AUDIT CONFIGURED; COMPUTED RESULTS NOT YET CONFIRMED**
+Status: **AUDIT EXECUTED AND VERIFIED; DATASET NOT FROZEN**
 
 ## New artifacts in Sovra
 - scripts/audit_parquet_similarity.py — read-only PyArrow streaming, partition-crossing system links, metric threshold tables, md5/sha256 provenance.
@@ -21,8 +21,8 @@ A target_system may map to multiple ligand groups and split assignments. The rep
 
 Only metadata, scripts and resulting aggregate reports may be put in Sovra GitHub; no raw AF3 outputs or large dataset archives.
 
-## Current blockers and action
-The chat's local container runtime could not open the 376 MB user upload (runtime ClientError). GitHub Actions was configured as a separate reproducible compute option. **Do not claim it executed successfully until a workflow run, tests and artifact are verified.**
+## Execution confirmation
+GitHub Actions run [38995170462](https://github.com/sushan5140/sovra/actions/runs/38995170462) completed successfully on 2026-10-17; both downloaded source MD5 checks passed and all 12 synthetic tests passed. The real Parquet audit processed 3,862,734 rows and found 19,615 observed cross-partition links. See [verified results](PHASE_03E_VERIFIED_RESULTS.md). The old split remains provisional and is not acceptable for a strict unseen-protein generalization claim.
 
 Once report exists:
 1. Verify checksums, query/target mapping coverage and model data source.
