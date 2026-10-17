@@ -1,0 +1,60 @@
+name: Phase 03F similarity-aware split feasibility
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/phase03f-rebuild.yml"
+      - "scripts/phase03f_rebuild_splits.py"
+      - "tests/test_phase03f_splits.py"
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install pyarrow==21.0.0
+      - name: Run all synthetic regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Download pinned source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sovra-data
+          for name in annotations.csv all_similarity_scores.parquet; do
+            curl --fail --location --silent --show-error --retry 3 --retry-delay 5 \
+              "https://zenodo.org/records/16754298/files/$name?download=1" \
+              --output "/tmp/sovra-data/$name"
+          done
+          printf '793c711638ba20ae40518ed0e36b0a56  /tmp/sovra-data/annotations.csv\n' | md5sum -c -
+          printf 'eeac5530410568f91ff3a4cdd5756e56  /tmp/sovra-data/all_similarity_scores.parquet\n' | md5sum -c -
+      - name: Rebuild and analyze partition feasibility
+        run: |
+          python scripts/phase03f_rebuild_splits.py \
+            --annotations /tmp/sovra-data/annotations.csv \
+            --similarity /tmp/sovra-data/all_similarity_scores.parquet \
+            --manifest /tmp/sovra-data/candidate_splits_80.json \
+            --out /tmp/sovra-data/phase03f_report.json
+          sha256sum /tmp/sovra-data/candidate_splits_80.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/sovra-data/phase03f_report.json'))
+          for policy, values in x['candidate_summary'].items():
+              print(policy, 'components=',values['components'],
+                    'largest_fraction=',values['largest_component_fraction'],
+                    'splits=',values['split_group_counts'])
+          PY
+      - name: Upload aggregate-only report (no raw third-party data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase03f-aggregate-report
+          path: /tmp/sovra-data/phase03f_report.json
+          retention-days: 14
