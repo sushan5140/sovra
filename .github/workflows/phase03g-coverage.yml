@@ -1,0 +1,58 @@
+name: Phase 03G method coverage and eligibility
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/phase03g-coverage.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal scientific dependency
+        run: python -m pip install pyarrow==21.0.0
+      - name: Run synthetic regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Download and authenticate exact Zenodo source release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sovra-data
+          for name in annotations.csv all_similarity_scores.parquet predictions.tar.gz; do
+            curl --fail --location --silent --show-error --retry 3 --retry-delay 5 \
+              "https://zenodo.org/records/16754298/files/$name?download=1" \
+              --output "/tmp/sovra-data/$name"
+          done
+          printf '793c711638ba20ae40518ed0e36b0a56  /tmp/sovra-data/annotations.csv\n' | md5sum -c -
+          printf 'eeac5530410568f91ff3a4cdd5756e56  /tmp/sovra-data/all_similarity_scores.parquet\n' | md5sum -c -
+          printf '58648b836ff9434bc929b7fad25cd9bb  /tmp/sovra-data/predictions.tar.gz\n' | md5sum -c -
+      - name: Rebuild previously verified candidate split
+        run: |
+          python scripts/phase03f_rebuild_splits.py \
+            --annotations /tmp/sovra-data/annotations.csv \
+            --similarity /tmp/sovra-data/all_similarity_scores.parquet \
+            --manifest /tmp/sovra-data/candidate_splits_80.json \
+            --out /tmp/sovra-data/phase03f_preflight.json
+          echo '48ad536f241cc6f68eb86fa509ec28d6ee4f205f7bba5536c15254081aa8a29b  /tmp/sovra-data/candidate_splits_80.json' | sha256sum -c -
+      - name: Method-specific eligibility and model coverage
+        run: |
+          python scripts/phase03g_coverage.py \
+            --annotations /tmp/sovra-data/annotations.csv \
+            --predictions /tmp/sovra-data/predictions.tar.gz \
+            --manifest /tmp/sovra-data/candidate_splits_80.json \
+            --out /tmp/sovra-data/phase03g_coverage_report.json
+      - name: Upload aggregate-only summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase03g-aggregate-only
+          path: /tmp/sovra-data/phase03g_coverage_report.json
+          retention-days: 14
