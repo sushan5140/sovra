@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - ".github/workflows/phase03g-coverage.yml"
+      - "scripts/phase03g_coverage.py"
+      - "tests/test_phase03g_coverage.py"
 
 permissions:
   contents: read
