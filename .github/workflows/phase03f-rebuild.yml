@@ -52,9 +52,27 @@ jobs:
                     'largest_fraction=',values['largest_component_fraction'],
                     'splits=',values['split_group_counts'])
           PY
+      - name: Independent cross-split verification
+        run: |
+          python scripts/audit_parquet_similarity.py \
+            --annotations /tmp/sovra-data/annotations.csv \
+            --manifest /tmp/sovra-data/candidate_splits_80.json \
+            --similarity /tmp/sovra-data/all_similarity_scores.parquet \
+            --threshold 80 \
+            --out /tmp/sovra-data/phase03f_independent_check.json
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/sovra-data/phase03f_independent_check.json'))
+          assert r['zenodo_md5_matches'], 'source checksum mismatch'
+          for metric in ['protein_fident_weighted_sum', 'pocket_fident']:
+              assert r['threshold_links_by_metric'].get(metric) == 0, f"cross-split >=80 overlap persists: {metric}"
+          print('INDEPENDENT CHECK PASSED: zero observed >=80 protein/pocket links crossing split')
+          PY
       - name: Upload aggregate-only report (no raw third-party data)
         uses: actions/upload-artifact@v4
         with:
           name: phase03f-aggregate-report
-          path: /tmp/sovra-data/phase03f_report.json
+          path: |
+            /tmp/sovra-data/phase03f_report.json
+            /tmp/sovra-data/phase03f_independent_check.json
           retention-days: 14
