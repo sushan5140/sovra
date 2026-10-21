@@ -1,0 +1,3 @@
+[submodule "private_lab"]
+	path = private_lab
+	url = https://github.com/sushan5140/private-lab.git
